@@ -94,6 +94,7 @@ class MegaAccount:
         name = name[::-1].split(".", 1)
         name[1] = f"_{int(time())-1654041600}_{choice('0123456789')}"[::-1]+name[1]
         name = ".".join(name)[::-1]
+        await file.start_buf()
         link = await self._mega.upload_from_tg(file, size, name, callback)
         await client.mega_accountsManager.takeSpace(self, size)
         await callback(f"File uploaded to mega.nz!\n\nFile name: {name}\nLink: {link}")
@@ -103,9 +104,12 @@ class AccountsManager:
         self._pool = None
         self._reg = False
         self._registerTask = None
+        self._lastStatsCheck = 0
+        self._stats = {}
 
     async def init(self):
         self._pool = await create_pool(environ.get("DB"), min_size=10, max_size=50)
+        await self.getStats()
         if not self._registerTask:
             self._registerTask = get_event_loop().create_task(self._registerAccountsTask())
 
@@ -154,18 +158,36 @@ class AccountsManager:
         if not self._pool:
             await self.init()
         async with self._pool.acquire() as db:
-            await db.execute(f"UPDATE accounts SET free_space=free_space-{bytes_count} WHERE login='{account.email}';")
+            await db.execute(f"UPDATE accounts SET free_space=free_space-{bytes_count}, files=files+1 WHERE login='{account.email}';")
 
     async def _registerAccountsTask(self):
         while True:
-            account = await MegaAccount("".join(choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for x in range(16))).init_mail()
-            await account.register()
-            acc = await account.verify()
-            await account.login(*acc)
-            async with self._pool.acquire() as db:
-                if (uh := getattr(account._mega, "_user_hash")) and (pa := getattr(account._mega, "_password_aes")):
-                    pa = b64encode(pa).decode("utf8")
-                    await db.execute(f"INSERT INTO accounts (login, password, user_hash, password_aes) VALUES ('{acc[0]}', '{acc[1]}', '{uh}', '{pa}');")
-                else:
-                    await db.execute(f"INSERT INTO accounts (login, password) VALUES ('{acc[0]}', '{acc[1]}');")
+            try:
+                print("Creating account")
+                account = await MegaAccount("".join(choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for x in range(16))).init_mail()
+                await account.register()
+                acc = await account.verify()
+                await account.login(*acc)
+                async with self._pool.acquire() as db:
+                    if (uh := getattr(account._mega, "_user_hash")) and (pa := getattr(account._mega, "_password_aes")):
+                        pa = b64encode(pa).decode("utf8")
+                        await db.execute(f"INSERT INTO accounts (login, password, user_hash, password_aes) VALUES ('{acc[0]}', '{acc[1]}', '{uh}', '{pa}');")
+                    else:
+                        await db.execute(f"INSERT INTO accounts (login, password) VALUES ('{acc[0]}', '{acc[1]}');")
+            except Exception as e:
+                print(e)
+                await asleep(60)
+                continue
             await asleep(60*60)
+
+    async def getStats(self):
+        if not self._pool:
+            await self.init()
+        if time()-self._lastStatsCheck < 60*30:
+            return self._stats
+        async with self._pool.acquire() as db:
+            r = await db.fetch(f"SELECT COUNT(login) AS accounts, SUM(free_space) AS free, SUM(files) AS files FROM accounts;")
+            r = r[0]
+            self._stats = {"accounts": r["accounts"], "free_space": round(r["free"]/1000/1000/1000, 2), "files": r["files"]}
+        self._lastStatsCheck = time()
+        return self._stats

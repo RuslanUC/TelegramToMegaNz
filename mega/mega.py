@@ -154,11 +154,13 @@ class Mega:
         mac_str = b'\x00' * 16
         mac_encryptor = AES.new(k_str, AES.MODE_CBC, mac_str)
         iv_str = a32_to_str([ul_key[4], ul_key[5], ul_key[4], ul_key[5]])
+        
+        fs_mb = round(file_size/1024/1024, 2)
 
         for chunk_start, chunk_size in get_chunks(file_size):
             chunk = await file.read(chunk_size)
             upload_progress += len(chunk)
-            await callback(f"Uploading...\n\n{round(upload_progress/1024/1024, 2)}/{round(file_size/1024/1024, 2)} MB\n{round(upload_progress/file_size*100, 1)}%")
+            await callback(f"Downloading...\n{round(file._buf._dl/1024/1024, 2)}/{fs_mb} MB ({round(file._buf._dl/file_size*100, 1)}%)\n\nUploading...\n{round(upload_progress/1024/1024, 2)}/{fs_mb} MB ({round(upload_progress/file_size*100, 1)}%)")
 
             encryptor = AES.new(k_str, AES.MODE_CBC, iv_str)
             for i in range(0, len(chunk) - 16, 16):

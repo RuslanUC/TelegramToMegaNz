@@ -22,9 +22,19 @@ async def file_handler(_cl, message):
     acc = await bot.mega_accountsManager.getAccount(media.file_size, _cb)
     await acc.upload(media, bot, _cb)
 
+@bot.on_message(filters.command(["stats"]))
+async def message_account(_cl, message):
+    stats = await bot.mega_accountsManager.getStats()
+    return await message.reply(
+        f"Statistics:\n\n" +
+        f"Total accounts: {stats.get('accounts', '?')}\n" +
+        f"Total free space: {stats.get('free_space', '?')} GB\n" +
+        f"Files uploaded: {stats.get('files', '?')}"
+    )
+
 @bot.on_message(~filters.bot & (filters.text | filters.command(["start"])))
 async def message_account(_cl, message):
-    return await message.reply("Send me a media and i send you a mega.nz link.")
+    return await message.reply("Send me a media and i'll send you a mega.nz link.")
 
 if __name__ == "__main__":
     print("Bot running!")

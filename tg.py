@@ -3,6 +3,7 @@ from pyrogram.session import Session, Auth
 from pyrogram.raw.functions.upload import GetFile
 from pyrogram.raw.functions.auth import ImportAuthorization, ExportAuthorization
 from pyrogram.raw.types import InputDocumentFileLocation, InputPhotoFileLocation, InputPeerPhotoFileLocation, InputPeerChannel, InputPeerChat, InputPeerUser
+from asyncio import get_event_loop, sleep as asleep, gather
 
 class Buffer:
     def __init__(self, file):
@@ -10,17 +11,37 @@ class Buffer:
         self._file = file
         self._bytes = b""
         self._eof = False
+        self._dl = 0
 
-    async def read(self, count):
-        if count > len(self._bytes):
-            if not self._eof:
-                chunk = await self._file.getChunkAt(self._offset)
-                self._bytes += chunk
+    async def _start(self, task=False, loop=None):
+        if not loop:
+            loop = get_event_loop()
+        if not task:
+            loop.create_task(self._start(True, loop))
+            return
+        downloading = []
+        part_id = 0
+        while not self._eof:
+            if len(downloading) < 4:
+                downloading.append(loop.create_task(self._file.getChunkAt(part_id*1024*1024)))
+                part_id += 1
+            if downloading and downloading[0].done():
+                dtask = downloading.pop(0)
+                res = await gather(dtask)
+                chunk = res[0]
+                self._dl += len(chunk)
                 if len(chunk) != 1024*1024:
                     self._eof = True
-            else:
-                if len(self._bytes) == 0:
-                    return b""
+                self._bytes += chunk
+            await asleep(0.1)
+
+    async def read(self, count):
+        while count > len(self._bytes):
+            if self._eof:
+                break
+            await asleep(0.1)
+        if len(self._bytes) == 0 and self._eof:
+            return b""
         ret = self._bytes[:count]
         self._bytes = self._bytes[count:]
         return ret
@@ -35,6 +56,9 @@ class File:
     async def getChunkAt(self, offset=0):
         session = await get_media_session(self.client, self.id)
         return (await session.send(GetFile(location=self.loc, offset=offset, limit=1024*1024))).bytes
+
+    async def start_buf(self):
+        await self._buf._start()
 
     async def read(self, count):
         return await self._buf.read(count)
