@@ -22,7 +22,7 @@ class Buffer:
         downloading = []
         part_id = 0
         while not self._eof:
-            if len(downloading) < 4:
+            if len(downloading) < 2 and len(self._bytes) < 16*1024*1024:
                 downloading.append(loop.create_task(self._file.getChunkAt(part_id*1024*1024)))
                 part_id += 1
             if downloading and downloading[0].done():

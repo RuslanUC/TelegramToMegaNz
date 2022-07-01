@@ -160,7 +160,14 @@ class Mega:
         for chunk_start, chunk_size in get_chunks(file_size):
             chunk = await file.read(chunk_size)
             upload_progress += len(chunk)
-            await callback(f"Downloading...\n{round(file._buf._dl/1024/1024, 2)}/{fs_mb} MB ({round(file._buf._dl/file_size*100, 1)}%)\n\nUploading...\n{round(upload_progress/1024/1024, 2)}/{fs_mb} MB ({round(upload_progress/file_size*100, 1)}%)")
+            await callback(
+                f"Downloading...\n" +
+                f"{round(file._buf._dl/1024/1024, 2)}/{fs_mb} MB " +
+                f"({round(file._buf._dl/file_size*100, 1)}%)\n" +
+                f"Buffered: {round(len(file._buf._bytes)/1024/1024, 2)} MB\n\n" +
+                f"Uploading...\n{round(upload_progress/1024/1024, 2)}/{fs_mb} MB " +
+                f"({round(upload_progress/file_size*100, 1)}%)"
+            )
 
             encryptor = AES.new(k_str, AES.MODE_CBC, iv_str)
             for i in range(0, len(chunk) - 16, 16):
