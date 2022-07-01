@@ -1,6 +1,7 @@
 # Telegram-To-Mega.nz
 
 Upload telegram files to mega.nz.
+Demo: [@filetomega_bot](https://t.me/filetomega_bot)
 
 <details>
 <summary><b>Enviroment variables you need to set:</b></summary>
