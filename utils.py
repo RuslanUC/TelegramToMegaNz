@@ -175,8 +175,8 @@ class AccountsManager:
                     else:
                         await db.execute(f"INSERT INTO accounts (login, password) VALUES ('{acc[0]}', '{acc[1]}');")
             except Exception as e:
-                print(e)
-                await asleep(60)
+                print(f"{e.__traceback__.tb_lineno}:{e.__class__.__name__}: {e}")
+                await asleep(60*60)
                 continue
             await asleep(60*60)
 

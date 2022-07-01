@@ -55,7 +55,14 @@ class File:
 
     async def getChunkAt(self, offset=0):
         session = await get_media_session(self.client, self.id)
-        return (await session.send(GetFile(location=self.loc, offset=offset, limit=1024*1024))).bytes
+        for i in range(5):
+            try:
+                return (await session.send(GetFile(location=self.loc, offset=offset, limit=1024*1024))).bytes
+            except Exception as e:
+                if i == 4:
+                    raise
+                print(f"tg:{e.__class__.__name__}: {e}")
+                await asleep(1)
 
     async def start_buf(self):
         await self._buf._start()
